@@ -63,7 +63,7 @@ architecture structural of abs_ila_wrapper is
   -- Components --
   ----------------
 
-  component abs_look_ahead_128 is
+  component invert_look_ahead_128 is
     port (
       input    : in    std_logic_vector(G_n - 1 downto 0);
       output   : out   std_logic_vector(G_n - 1 downto 0);
@@ -131,13 +131,11 @@ begin
   -- Absolute Logic Hardware --
   -----------------------------
 
-  abs_hw : abs_look_ahead_128
+  abs_hw : invert_look_ahead_128
     port map (
-      input    => '1' & abs_hw_input(abs_hw_input'left - 1 downto 0),
-      output   => abs_hw_output,
+      input    => abs_hw_input,
+      output   => output,
       prop_out => open
     );
-    
-  output <= not abs_hw_input(G_n - 1) & abs_hw_output(abs_hw_output'left - 1 downto 0);
 
 end architecture structural;

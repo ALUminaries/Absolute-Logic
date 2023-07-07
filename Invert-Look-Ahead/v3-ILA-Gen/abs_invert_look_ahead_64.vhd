@@ -1,11 +1,11 @@
 -------------------------------------------------------------------------------------
--- abs_look_ahead_256.vhd
+-- invert_look_ahead_64.vhd
 -------------------------------------------------------------------------------------
 -- Authors:     Riley Jackson, Maxwell Phillips (generalization and revision)
 -- Copyright:   Ohio Northern University, 2023.
 -- License:     GPL v3
 -- Description: Primary absolute value logic based on carry-look-ahead structure.
--- Precision:   256 bits
+-- Precision:   64 bits
 -------------------------------------------------------------------------------------
 --
 -- Finds the sign and magnitude of a two's complement input.
@@ -41,27 +41,25 @@ library IEEE;
   use IEEE.std_logic_1164.all;
   use IEEE.numeric_std.all;
 
-entity abs_look_ahead_256 is
+entity invert_look_ahead_64 is
   generic (
-    G_n       : integer := 256; -- Input length is n
-    G_levels  : integer := 4;    -- number of levels of invert look-ahead logic below the top level
-    G_l0_size : integer := 256; -- should be equal to 4^(G_levels) and the smallest power of 4 larger than G_n
-    G_l1_size : integer := 64; -- G_l0_size / 4, and so on.
-    G_l2_size : integer := 16;
-    G_l3_size : integer := 4
+    G_n       : integer := 64; -- Input length is n
+    G_levels  : integer := 3;    -- number of levels of invert look-ahead logic below the top level
+    G_l0_size : integer := 64; -- should be equal to 4^(G_levels) and the smallest power of 4 larger than G_n
+    G_l1_size : integer := 16; -- G_l0_size / 4, and so on.
+    G_l2_size : integer := 4
   );
   port (
     input    : in    std_logic_vector(G_n - 1 downto 0);
     output   : out   std_logic_vector(G_n - 1 downto 0);
     prop_out : out   std_logic
   );
-end abs_look_ahead_256;
+end invert_look_ahead_64;
 
-architecture behavioral of abs_look_ahead_256 is
+architecture behavioral of invert_look_ahead_64 is
 
-  component partial_full_adder is
+  component xor_wrapper is
     port (
-      a_sign   : in    std_logic;
       a_i      : in    std_logic;
       carry_in : in    std_logic;
       sum_out  : out   std_logic;
@@ -84,15 +82,11 @@ architecture behavioral of abs_look_ahead_256 is
     );
   end component;
 
-  signal sign         : std_logic; -- the sign of the input
   signal top_prop_out : std_logic; -- the output of the top level ILA
 
-  signal top_to_l3_carry_in : std_logic_vector(G_l3_size - 1 downto 0);
-  signal l3_to_top_prop_out : std_logic_vector(G_l3_size - 1 downto 0);
+  signal top_to_l2_carry_in : std_logic_vector(G_l2_size - 1 downto 0);
+  signal l2_to_top_prop_out : std_logic_vector(G_l2_size - 1 downto 0);
   
-  signal l3_to_l2_carry_in : std_logic_vector(G_l2_size - 1 downto 0);
-  signal l2_to_l3_prop_out : std_logic_vector(G_l2_size - 1 downto 0);
-
   signal l2_to_l1_carry_in : std_logic_vector(G_l1_size - 1 downto 0); -- (C_4i..4i+3) carry in signals from L2 ILAs to L1 ILAs
   signal l1_to_l2_prop_out : std_logic_vector(G_l1_size - 1 downto 0); -- (P_4i..4i+3) group propagate signals from L1 ILAs to L2 ILAs
 
@@ -101,7 +95,6 @@ architecture behavioral of abs_look_ahead_256 is
 
 begin
 
-  sign                  <= input(input'left); -- given two's complement input, the MSB always equals the sign
   output(0)             <= input(0);          -- LSB of output always equals LSB of input, since this bit is never flipped
   pfa_to_l1_prop_out(0) <= input(0);          -- need to pass this because it doesn't have a PFA
   prop_out              <= top_prop_out;
@@ -110,9 +103,8 @@ begin
   -- the rest of the PFAs aren't needed, but G_l0_size is needed for other areas because of indexing.
   -- however, unnecessary things will be optimized away during implementation.
   gen_pfa : for i in 1 to (G_n - 1) generate
-    pfa_i : partial_full_adder
+    pfa_i : xor_wrapper
       port map (
-        a_sign   => sign,
         a_i      => input(i),
         carry_in => l1_to_pfa_carry_in(i),
         sum_out  => output(i),
@@ -139,7 +131,7 @@ begin
   gen_l2_ila : for i in 0 to (G_l2_size - 1) generate
     l2_ila_i : invert_look_ahead
       port map (
-        c_in       => l3_to_l2_carry_in(i),
+        c_in       => top_to_l2_carry_in(i),
         prop_in_0  => l1_to_l2_prop_out(i * 4),
         prop_in_1  => l1_to_l2_prop_out(i * 4 + 1),
         prop_in_2  => l1_to_l2_prop_out(i * 4 + 2),
@@ -148,37 +140,21 @@ begin
         c_out_1    => l2_to_l1_carry_in(i * 4 + 1),
         c_out_2    => l2_to_l1_carry_in(i * 4 + 2),
         c_out_3    => l2_to_l1_carry_in(i * 4 + 3),
-        prop_group => l2_to_l3_prop_out(i)
+        prop_group => l2_to_top_prop_out(i)
       );
   end generate gen_l2_ila;
-
-  gen_l3_ila : for i in 0 to (G_l3_size - 1) generate
-    l3_ila_i : invert_look_ahead
-      port map (
-        c_in       => top_to_l3_carry_in(i),
-        prop_in_0  => l2_to_l3_prop_out(i * 4),
-        prop_in_1  => l2_to_l3_prop_out(i * 4 + 1),
-        prop_in_2  => l2_to_l3_prop_out(i * 4 + 2),
-        prop_in_3  => l2_to_l3_prop_out(i * 4 + 3),
-        c_out_0    => l3_to_l2_carry_in(i * 4),
-        c_out_1    => l3_to_l2_carry_in(i * 4 + 1),
-        c_out_2    => l3_to_l2_carry_in(i * 4 + 2),
-        c_out_3    => l3_to_l2_carry_in(i * 4 + 3),
-        prop_group => l3_to_top_prop_out(i)
-      );
-  end generate gen_l3_ila;
 
   top_ila : invert_look_ahead
     port map (
       c_in       => input(0),
-      prop_in_0  => l3_to_top_prop_out(0),
-      prop_in_1  => l3_to_top_prop_out(1),
-      prop_in_2  => l3_to_top_prop_out(2),
-      prop_in_3  => l3_to_top_prop_out(3),
-      c_out_0    => top_to_l3_carry_in(0),
-      c_out_1    => top_to_l3_carry_in(1),
-      c_out_2    => top_to_l3_carry_in(2),
-      c_out_3    => top_to_l3_carry_in(3),
+      prop_in_0  => l2_to_top_prop_out(0),
+      prop_in_1  => l2_to_top_prop_out(1),
+      prop_in_2  => l2_to_top_prop_out(2),
+      prop_in_3  => l2_to_top_prop_out(3),
+      c_out_0    => top_to_l2_carry_in(0),
+      c_out_1    => top_to_l2_carry_in(1),
+      c_out_2    => top_to_l2_carry_in(2),
+      c_out_3    => top_to_l2_carry_in(3),
       prop_group => top_prop_out
     );
 

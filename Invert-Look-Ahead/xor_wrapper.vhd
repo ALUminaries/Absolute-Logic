@@ -23,21 +23,20 @@ library IEEE;
   use IEEE.std_logic_1164.all;
   use IEEE.numeric_std.all;
 
-entity partial_full_adder is
+entity xor_wrapper is
   port (
-    a_sign   : in    std_logic; -- prev. `An`
     a_i      : in    std_logic; -- prev. `Ain`
     carry_in : in    std_logic; -- prev. `Iin`
     sum_out  : out   std_logic; -- prev. `O`
     prop_out : out   std_logic  -- prev. `Aout`
   );
-end entity partial_full_adder;
+end entity xor_wrapper;
 
-architecture behavioral of partial_full_adder is
+architecture behavioral of xor_wrapper is
 
 begin
 
   prop_out <= a_i;
-  sum_out  <= a_i xor (carry_in and a_sign);
+  sum_out  <= a_i xor carry_in;
 
 end architecture behavioral;

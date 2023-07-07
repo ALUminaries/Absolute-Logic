@@ -1,11 +1,11 @@
 -------------------------------------------------------------------------------------
--- abs_look_ahead_512.vhd
+-- invert_look_ahead_1024.vhd
 -------------------------------------------------------------------------------------
 -- Authors:     Riley Jackson, Maxwell Phillips (generalization and revision)
 -- Copyright:   Ohio Northern University, 2023.
 -- License:     GPL v3
 -- Description: Primary absolute value logic based on carry-look-ahead structure.
--- Precision:   512 bits
+-- Precision:   1024 bits
 -------------------------------------------------------------------------------------
 --
 -- Finds the sign and magnitude of a two's complement input.
@@ -41,9 +41,9 @@ library IEEE;
   use IEEE.std_logic_1164.all;
   use IEEE.numeric_std.all;
 
-entity abs_look_ahead_512 is
+entity invert_look_ahead_1024 is
   generic (
-    G_n       : integer := 512; -- Input length is n
+    G_n       : integer := 1024; -- Input length is n
     G_levels  : integer := 5;    -- number of levels of invert look-ahead logic below the top level
     G_l0_size : integer := 1024; -- should be equal to 4^(G_levels) and the smallest power of 4 larger than G_n
     G_l1_size : integer := 256; -- G_l0_size / 4, and so on.
@@ -56,13 +56,12 @@ entity abs_look_ahead_512 is
     output   : out   std_logic_vector(G_n - 1 downto 0);
     prop_out : out   std_logic
   );
-end abs_look_ahead_512;
+end invert_look_ahead_1024;
 
-architecture behavioral of abs_look_ahead_512 is
+architecture behavioral of invert_look_ahead_1024 is
 
-  component partial_full_adder is
+  component xor_wrapper is
     port (
-      a_sign   : in    std_logic;
       a_i      : in    std_logic;
       carry_in : in    std_logic;
       sum_out  : out   std_logic;
@@ -85,7 +84,6 @@ architecture behavioral of abs_look_ahead_512 is
     );
   end component;
 
-  signal sign         : std_logic; -- the sign of the input
   signal top_prop_out : std_logic; -- the output of the top level ILA
 
   signal top_to_l4_carry_in : std_logic_vector(G_l4_size - 1 downto 0);
@@ -105,7 +103,6 @@ architecture behavioral of abs_look_ahead_512 is
 
 begin
 
-  sign                  <= input(input'left); -- given two's complement input, the MSB always equals the sign
   output(0)             <= input(0);          -- LSB of output always equals LSB of input, since this bit is never flipped
   pfa_to_l1_prop_out(0) <= input(0);          -- need to pass this because it doesn't have a PFA
   prop_out              <= top_prop_out;
@@ -114,9 +111,8 @@ begin
   -- the rest of the PFAs aren't needed, but G_l0_size is needed for other areas because of indexing.
   -- however, unnecessary things will be optimized away during implementation.
   gen_pfa : for i in 1 to (G_n - 1) generate
-    pfa_i : partial_full_adder
+    pfa_i : xor_wrapper
       port map (
-        a_sign   => sign,
         a_i      => input(i),
         carry_in => l1_to_pfa_carry_in(i),
         sum_out  => output(i),

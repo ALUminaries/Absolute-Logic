@@ -9,7 +9,7 @@ Generates the following files:
 - abs_ila_wrapper_v3_####.vhd
  */
 fun main(args: Array<String>) {
-    val num_bits = 4096 // bits to receive/transmit
+    val num_bits = 32 // bits to receive/transmit
 
     // Note: This generator doesn't work for num_bits <= 16.
     // Not that you should be trying to make one that small anyway.
@@ -140,7 +140,7 @@ fun main(args: Array<String>) {
     var content =
 """
 -------------------------------------------------------------------------------------
--- abs_look_ahead_${num_bits}.vhd
+-- invert_look_ahead_${num_bits}.vhd
 -------------------------------------------------------------------------------------
 -- Authors:     Riley Jackson, Maxwell Phillips (generalization and revision)
 -- Copyright:   Ohio Northern University, 2023.
@@ -182,7 +182,7 @@ library IEEE;
   use IEEE.std_logic_1164.all;
   use IEEE.numeric_std.all;
 
-entity abs_look_ahead_${num_bits} is
+entity invert_look_ahead_${num_bits} is
   generic (
     G_n       : integer := ${num_bits}; -- Input length is n
     G_levels  : integer := ${levels};    -- number of levels of invert look-ahead logic below the top level
@@ -193,13 +193,12 @@ ${genLevelSizeString()}
     output   : out   std_logic_vector(G_n - 1 downto 0);
     prop_out : out   std_logic
   );
-end abs_look_ahead_${num_bits};
+end invert_look_ahead_${num_bits};
 
-architecture behavioral of abs_look_ahead_${num_bits} is
+architecture behavioral of invert_look_ahead_${num_bits} is
 
-  component partial_full_adder is
+  component xor_wrapper is
     port (
-      a_sign   : in    std_logic;
       a_i      : in    std_logic;
       carry_in : in    std_logic;
       sum_out  : out   std_logic;
@@ -222,7 +221,6 @@ architecture behavioral of abs_look_ahead_${num_bits} is
     );
   end component;
 
-  signal sign         : std_logic; -- the sign of the input
   signal top_prop_out : std_logic; -- the output of the top level ILA
 
   signal top_to_l${levels - 1}_carry_in : std_logic_vector(G_l${levels - 1}_size - 1 downto 0);
@@ -235,7 +233,6 @@ ${genMiddleLevelSignalStrings()}
 
 begin
 
-  sign                  <= input(input'left); -- given two's complement input, the MSB always equals the sign
   output(0)             <= input(0);          -- LSB of output always equals LSB of input, since this bit is never flipped
   pfa_to_l1_prop_out(0) <= input(0);          -- need to pass this because it doesn't have a PFA
   prop_out              <= top_prop_out;
@@ -244,9 +241,8 @@ begin
   -- the rest of the PFAs aren't needed, but G_l0_size is needed for other areas because of indexing.
   -- however, unnecessary things will be optimized away during implementation.
   gen_pfa : for i in 1 to (G_n - 1) generate
-    pfa_i : partial_full_adder
+    pfa_i : xor_wrapper
       port map (
-        a_sign   => sign,
         a_i      => input(i),
         carry_in => l1_to_pfa_carry_in(i),
         sum_out  => output(i),
@@ -287,7 +283,7 @@ ${genMiddleLevelComponentLoopsString()}
 end architecture behavioral;
 """.trimIndent()
 
-    var file = File("abs_look_ahead_${num_bits}.vhd")
+    var file = File("abs_invert_look_ahead_${num_bits}.vhd")
 
     file.writeText(content)
 
@@ -358,7 +354,7 @@ architecture structural of abs_ila_wrapper is
   -- Components --
   ----------------
 
-  component abs_look_ahead_${num_bits} is
+  component invert_look_ahead_${num_bits} is
     port (
       input    : in    std_logic_vector(G_n - 1 downto 0);
       output   : out   std_logic_vector(G_n - 1 downto 0);
@@ -426,14 +422,12 @@ begin
   -- Absolute Logic Hardware --
   -----------------------------
 
-  abs_hw : abs_look_ahead_${num_bits}
+  abs_hw : invert_look_ahead_${num_bits}
     port map (
-      input    => '1' & abs_hw_input(abs_hw_input'left - 1 downto 0),
-      output   => abs_hw_output,
+      input    => abs_hw_input,
+      output   => output,
       prop_out => open
     );
-    
-  output <= not abs_hw_input(G_n - 1) & abs_hw_output(abs_hw_output'left - 1 downto 0);
 
 end architecture structural;
 """.trimIndent()
