@@ -66,7 +66,7 @@ end abs_2c_look_ahead_1024;
 
 architecture behavioral of abs_2c_look_ahead_1024 is
 
-  component partial_full_adder is
+  component partial_full_inverter is
     port (
       a_sign   : in    std_logic;
       a_i      : in    std_logic;
@@ -106,42 +106,42 @@ architecture behavioral of abs_2c_look_ahead_1024 is
   signal l2_to_l1_carry_in : std_logic_vector(G_l1_size - 1 downto 0); -- (C_4i..4i+3) carry in signals from L2 ILAs to L1 ILAs
   signal l1_to_l2_prop_out : std_logic_vector(G_l1_size - 1 downto 0); -- (P_4i..4i+3) group propagate signals from L1 ILAs to L2 ILAs
 
-  signal l1_to_pfa_carry_in : std_logic_vector(G_l0_size - 1 downto 0); -- (C_i) carry in signals to L0 PFAs
-  signal pfa_to_l1_prop_out : std_logic_vector(G_l0_size - 1 downto 0); -- (P_i) propagate signals from L0 PFAs
+  signal l1_to_pfi_carry_in : std_logic_vector(G_l0_size - 1 downto 0); -- (C_i) carry in signals to L0 PFIs
+  signal pfi_to_l1_prop_out : std_logic_vector(G_l0_size - 1 downto 0); -- (P_i) propagate signals from L0 PFIs
 
 begin
 
   sign                  <= input_sign;        -- take sign as input directly from port
   output(0)             <= input(0);          -- LSB of output always equals LSB of input, since this bit is never flipped
-  pfa_to_l1_prop_out(0) <= input(0);          -- need to pass this because it doesn't have a PFA
+  pfi_to_l1_prop_out(0) <= input(0);          -- need to pass this because it doesn't have a PFI
   prop_out              <= top_prop_out;
 
   -- note that the generation limit is G_n, not G_l0_size.
-  -- the rest of the PFAs aren't needed, but G_l0_size is needed for other areas because of indexing.
+  -- the rest of the PFIs aren't needed, but G_l0_size is needed for other areas because of indexing.
   -- however, unnecessary things will be optimized away during implementation.
-  gen_pfa : for i in 1 to (G_n - 1) generate
-    pfa_i : partial_full_adder
+  gen_pfi : for i in 1 to (G_n - 1) generate
+    pfi_i : partial_full_inverter
       port map (
         a_sign   => sign,
         a_i      => input(i),
-        carry_in => l1_to_pfa_carry_in(i),
+        carry_in => l1_to_pfi_carry_in(i),
         sum_out  => output(i),
-        prop_out => pfa_to_l1_prop_out(i)
+        prop_out => pfi_to_l1_prop_out(i)
       );
-  end generate gen_pfa;
+  end generate gen_pfi;
 
   gen_l1_ila : for i in 0 to (G_l1_size - 1) generate
     l1_ila_i : invert_look_ahead
       port map (
         c_in       => l2_to_l1_carry_in(i),
-        prop_in_0  => pfa_to_l1_prop_out(i * 4),
-        prop_in_1  => pfa_to_l1_prop_out(i * 4 + 1),
-        prop_in_2  => pfa_to_l1_prop_out(i * 4 + 2),
-        prop_in_3  => pfa_to_l1_prop_out(i * 4 + 3),
-        c_out_0    => l1_to_pfa_carry_in(i * 4),
-        c_out_1    => l1_to_pfa_carry_in(i * 4 + 1),
-        c_out_2    => l1_to_pfa_carry_in(i * 4 + 2),
-        c_out_3    => l1_to_pfa_carry_in(i * 4 + 3),
+        prop_in_0  => pfi_to_l1_prop_out(i * 4),
+        prop_in_1  => pfi_to_l1_prop_out(i * 4 + 1),
+        prop_in_2  => pfi_to_l1_prop_out(i * 4 + 2),
+        prop_in_3  => pfi_to_l1_prop_out(i * 4 + 3),
+        c_out_0    => l1_to_pfi_carry_in(i * 4),
+        c_out_1    => l1_to_pfi_carry_in(i * 4 + 1),
+        c_out_2    => l1_to_pfi_carry_in(i * 4 + 2),
+        c_out_3    => l1_to_pfi_carry_in(i * 4 + 3),
         prop_group => l1_to_l2_prop_out(i)
       );
   end generate gen_l1_ila;

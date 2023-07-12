@@ -1,10 +1,10 @@
 -------------------------------------------------------------------------------------
--- partial_full_adder.vhd
+-- partial_full_inverter.vhd
 -------------------------------------------------------------------------------------
 -- Authors:     Riley Jackson, Maxwell Phillips (revision)
 -- Copyright:   Ohio Northern University, 2023.
 -- License:     GPL v3
--- Description: Partial full adder for use with invert-look-ahead logic.
+-- Description: Modified partial full adder for use with invert-look-ahead logic.
 -------------------------------------------------------------------------------------
 -- Ports
 -------------------------------------------------------------------------------------
@@ -23,7 +23,7 @@ library IEEE;
   use IEEE.std_logic_1164.all;
   use IEEE.numeric_std.all;
 
-entity partial_full_adder is
+entity partial_full_inverter is
   port (
     a_sign   : in    std_logic; -- prev. `An`
     a_i      : in    std_logic; -- prev. `Ain`
@@ -31,9 +31,9 @@ entity partial_full_adder is
     sum_out  : out   std_logic; -- prev. `O`
     prop_out : out   std_logic  -- prev. `Aout`
   );
-end entity partial_full_adder;
+end entity partial_full_inverter;
 
-architecture behavioral of partial_full_adder is
+architecture behavioral of partial_full_inverter is
 
 begin
 
